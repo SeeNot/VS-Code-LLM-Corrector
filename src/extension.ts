@@ -19,7 +19,6 @@ export function activate(context: vscode.ExtensionContext) {
     const document = editor.document;
 
     const fullText = document.getText();
-    const language = document.languageId;
 
     const promt = "What is happening in this code:\n" + fullText;
 
