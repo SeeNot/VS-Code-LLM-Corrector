@@ -2,11 +2,11 @@ import * as vscode from 'vscode';
 import { sendPromt } from './openRouter';
 import path from 'path';
 import dotenv from 'dotenv';
-import fs from 'fs';
+import reviewPromt from './promts/default';
 
 export function activate(context: vscode.ExtensionContext) {
 
-  const disposable = vscode.commands.registerCommand('corrector.helloWorld', async () => {
+  const disposable = vscode.commands.registerCommand('corrector.fixFile', async () => {
 
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
@@ -20,7 +20,7 @@ export function activate(context: vscode.ExtensionContext) {
     const document = editor.document;
 
     const fullText = document.getText();
-    const promt = "Improve the readabilty of this code:\n" + fullText;
+    const promt = reviewPromt() + fullText;
 
     vscode.window.showInformationMessage('Connecting to LLM and scanning the file');
     const answer = await sendPromt(promt);
