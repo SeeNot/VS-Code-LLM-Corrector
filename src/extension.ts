@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { sendPromt } from './openRouter';
 import path from 'path';
 import dotenv from 'dotenv';
+import fs from 'fs';
 
 export function activate(context: vscode.ExtensionContext) {
 
@@ -19,7 +20,6 @@ export function activate(context: vscode.ExtensionContext) {
     const document = editor.document;
 
     const fullText = document.getText();
-
     const promt = "Improve the readabilty of this code:\n" + fullText;
 
     vscode.window.showInformationMessage('Connecting to LLM and scanning the file');
