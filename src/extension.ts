@@ -20,7 +20,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     const fullText = document.getText();
 
-    const promt = "What is happening in this code:\n" + fullText;
+    const promt = "Improve the readabilty of this code:\n" + fullText;
 
     vscode.window.showInformationMessage('Connecting to LLM and scanning the file');
     const answer = await sendPromt(promt);
