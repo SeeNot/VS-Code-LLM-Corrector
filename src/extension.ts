@@ -18,9 +18,19 @@ export function activate(context: vscode.ExtensionContext) {
     dotenv.config({ path: envPath });
 
     const document = editor.document;
+    const diagnosis = vscode.languages.getDiagnostics(document.uri);
+    const errors = diagnosis.map(d => {
+      const line = `Error start on line ${d.range.start} and ends on ${d.range.end}`;
+      const severity = d.severity;
+
+      return `${severity}: ${line} ${d.message}`;
+    });
+
+    console.log(errors);
 
     const fullText = document.getText();
-    const promt = reviewPromt() + fullText;
+    const promt = reviewPromt() + fullText + errors;
+    console.log(promt);
 
     vscode.window.showInformationMessage('Connecting to LLM and scanning the file');
     const answer = await sendPromt(promt);

@@ -4,7 +4,6 @@ import * as vscode from "vscode";
 import z from "zod";
 
 const MODEL = 'arcee-ai/trinity-large-preview:free';
-const PROJECT_PATH = vscode.workspace.workspaceFolders;
 
 export async function sendPromt(promt: string) {
 
@@ -15,7 +14,7 @@ export async function sendPromt(promt: string) {
   const response = client.callModel({
     model: MODEL,
     input: promt,
-    tools: [getEditTool()],
+    tools: [getEditTool(), getReadFileTool()],
     instructions: "Use the tools available to make edits to the users given file",
   });
 
@@ -29,10 +28,13 @@ function getEditTool() {
     inputSchema: z.object({
       operation: z.enum(['write', 'replace']).describe('The type of edit to perform'),
       content: z.string().describe(
-        `Use "write" to create a brand new file. Use "replace" to change existing content of 
-        file you have to specify old content that you want to relpace and the new content`
+        `Use "write" only to create a brand new file. Use "replace" to change existing content of 
+        file you have to specify old content that you want to replace and the new content`
       ),
-      oldContent: z.string().optional().describe('Only required for "replace" operation. The text to be replaced.'),
+      oldContent: z.string().optional().describe(
+        `Only required for "replace" operation. The text to be replaced. It needs to be exactly the same,
+        or it will fail to find the place you want to replace`
+      ),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -44,14 +46,12 @@ function getEditTool() {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
         return { success: false, message: `editor object does not exist. Exit.` };
-
       }
 
       const document = editor.document;
       const filePath = document.uri;
       const encoder = new TextEncoder;
       console.log(operation);
-
 
       if (!filePath) {
         return { success: false, message: 'User canceled' };
@@ -75,7 +75,7 @@ function getEditTool() {
           const startIndex = fileContent.indexOf(oldContent);
 
           if (startIndex === -1) {
-            throw new Error('The old content was given not found');
+            throw new Error('The old content that was given was not found');
           }
 
           const startPos = document.positionAt(startIndex);
@@ -84,7 +84,7 @@ function getEditTool() {
 
           editor.edit(editBuilder => {
             editBuilder.replace(range, content);
-          })
+          });
 
           return { success: true, message: `Successfully replaced text in ${filePath}` };
         }
@@ -100,4 +100,48 @@ function getEditTool() {
   });
 
   return editTool;
+}
+
+function getReadFileTool() {
+
+  const readTool = tool({
+    name: 'read_file',
+    description: 'Read the conent of a file. Not specifying a url will read the users currently open file',
+    inputSchema: z.object({
+      fileUrl: z.string().optional().describe(
+        `currently not implemented`
+      ),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+      message: z.string(),
+      fileContent: z.string(),
+    }),
+    execute: async ({ fileUrl }) => {
+      const document = vscode.window.activeTextEditor?.document;
+      let fileContent = '';
+
+      if (!fileUrl && document) {
+        fileContent = document.getText();
+
+        const diagnosis = vscode.languages.getDiagnostics(document.uri);
+
+        const errors = diagnosis.map(d => {
+          const line = `Error start on line ${d.range.start} and ends on ${d.range.end}`;
+          const severity = d.severity;
+
+          return `${severity}: ${line} ${d.message}`;
+        });
+
+        fileContent += "\n errors in this file from static analysis:\n" + errors;
+
+        return { success: true, message: ``, fileContent: fileContent };
+      }
+
+      return { success: false, message: `currently not implemented`, fileContent: fileContent };
+    }
+  });
+
+
+  return readTool;
 }
