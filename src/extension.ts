@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import path from 'path';
 import dotenv from 'dotenv';
-import { runAgentFixLoop } from './openRouter';
+import { runAgentFixLoop } from './openRouter/agent';
 
 export function activate(context: vscode.ExtensionContext) {
 
