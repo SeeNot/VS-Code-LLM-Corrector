@@ -2,23 +2,227 @@ import { tool } from "@openrouter/sdk";
 import { OpenRouter } from "@openrouter/sdk";
 import * as vscode from "vscode";
 import z from "zod";
+import analystPrompt from "./promts/analyst";
+import fixerPrompt from "./promts/fixer";
+import critiquePrompt from "./promts/critique";
 
 const MODEL = 'arcee-ai/trinity-large-preview:free';
 
-export async function sendPromt(promt: string) {
+const AGENT_ROLES = {
+  ANALYST: "analyst",
+  FIXER: "fixer",
+  CRITIQUE: "critique",
+} as const;
 
-  const client = new OpenRouter({
+type AgentRole = typeof AGENT_ROLES[keyof typeof AGENT_ROLES];
+
+const CRITIQUE_DECISIONS = {
+  END: "END",
+  RETRY: "RETRY",
+} as const;
+
+type CritiqueDecision = typeof CRITIQUE_DECISIONS[keyof typeof CRITIQUE_DECISIONS];
+
+function getClient() {
+  return new OpenRouter({
     apiKey: process.env.OPENROUTER_API
   });
+}
 
-  const response = client.callModel({
+function buildDiagnosticsString(diagnosis: vscode.Diagnostic[]) {
+  return diagnosis.map(d => {
+    const line = `Error start on line ${d.range.start} and ends on ${d.range.end}`;
+    const severity = d.severity;
+    return `${severity}: ${line} ${d.message}`;
+  }).join("\n");
+}
+
+function getWorkspaceContextFromActiveEditor() {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    throw new Error("No active editor");
+  }
+
+  const document = editor.document;
+  const fullText = document.getText();
+
+  const diagnosis = vscode.languages.getDiagnostics(document.uri);
+  const errors = buildDiagnosticsString(diagnosis);
+
+  return {
+    fileUrl: document.uri.toString(),
+    fullText,
+    errors
+  };
+}
+
+function parseCritiqueDecision(text: string): { decision: CritiqueDecision; feedback: string } {
+  const decisionMatch = text.match(/DECISION:\s*(END|RETRY)\b/i);
+  const decision =
+    (decisionMatch?.[1]?.toUpperCase() === CRITIQUE_DECISIONS.RETRY)
+      ? CRITIQUE_DECISIONS.RETRY
+      : CRITIQUE_DECISIONS.END;
+
+  const feedbackMatch = text.match(/CRITIQUE_FEEDBACK:\s*([\s\S]*)/i);
+  const feedback = feedbackMatch?.[1]?.trim() ?? "";
+
+  return { decision, feedback };
+}
+
+function getToolsFor(role: AgentRole) {
+  const edit = getEditTool();
+  const read = getReadFileTool();
+  const list = getListFilePathsTool();
+
+  if (role === AGENT_ROLES.ANALYST || role === AGENT_ROLES.CRITIQUE) {
+    return [read, list];
+  }
+
+  return [edit, read, list];
+}
+
+async function callAgent(params: {
+  client: OpenRouter;
+  role: AgentRole;
+  input: string;
+  instructions: string;
+}) {
+  const response = params.client.callModel({
     model: MODEL,
-    input: promt,
-    tools: [getEditTool(), getReadFileTool(), getListFilePathsTool()],
-    instructions: "Use the tools available to make edits to the users given file",
+    input: params.input,
+    tools: getToolsFor(params.role),
+    instructions: params.instructions,
   });
 
   return response.getText();
+}
+
+export async function sendPromt(promt: string) {
+
+  const client = getClient();
+  return callAgent({
+    client,
+    role: AGENT_ROLES.FIXER,
+    input: promt,
+    instructions: "Use the tools available to make edits to the users given file",
+  });
+}
+
+export async function runAgentFixLoop( numberOfTotalAttempts: number = 3) {
+  const client = getClient();
+
+  const initial = getWorkspaceContextFromActiveEditor();
+
+  const analystInput = `${analystPrompt()}
+
+  TARGET_FILE: ${initial.fileUrl}
+
+  FILE_CONTENT:
+  ${initial.fullText}
+
+  STATIC_ANALYSIS_ERRORS:
+  ${initial.errors || "(none)"}
+  `;
+
+  const planText = await callAgent({
+    client,
+    role: AGENT_ROLES.ANALYST,
+    input: analystInput,
+    instructions: "You are the Analyst. You can read files and list file paths. Do not edit files.",
+  });
+
+  let critiqueFeedback = "";
+
+  for (let attempt = 1; attempt <= numberOfTotalAttempts; attempt += 1) {
+    const ctx = getWorkspaceContextFromActiveEditor();
+
+    const fixerInput = `${fixerPrompt()}
+
+    ATTEMPT: ${attempt} / ${numberOfTotalAttempts}
+
+    TARGET_FILE: ${ctx.fileUrl}
+
+    ANALYST_PLAN:
+    ${planText}
+
+    CRITIQUE_FEEDBACK (if any):
+    ${critiqueFeedback || "(none)"}
+
+    CURRENT_FILE_CONTENT:
+    ${ctx.fullText}
+
+    CURRENT_STATIC_ANALYSIS_ERRORS:
+    ${ctx.errors || "(none)"}
+    `;
+
+    const fixerText = await callAgent({
+      client,
+      role: AGENT_ROLES.FIXER,
+      input: fixerInput,
+      instructions: "You are the Fixer. Implement the plan using tools. Edit files as needed, then verify by reading.",
+    });
+
+    const afterFix = getWorkspaceContextFromActiveEditor();
+
+    const critiqueInput = `${critiquePrompt()}
+
+    ATTEMPT: ${attempt} / ${numberOfTotalAttempts}
+
+    TARGET_FILE: ${afterFix.fileUrl}
+
+    ANALYST_PLAN:
+    ${planText}
+
+    FIXER_OUTPUT:
+    ${fixerText}
+
+    CURRENT_FILE_CONTENT:
+    ${afterFix.fullText}
+
+    CURRENT_STATIC_ANALYSIS_ERRORS:
+    ${afterFix.errors || "(none)"}
+    `;
+
+    const critiqueText = await callAgent({
+      client,
+      role: AGENT_ROLES.CRITIQUE,
+      input: critiqueInput,
+      instructions: "You are the Critique. Verify the result by reading files. Do not edit.",
+    });
+
+    const { decision, feedback } = parseCritiqueDecision(critiqueText);
+
+    if (decision === CRITIQUE_DECISIONS.END) {
+      return {
+        planText,
+        fixerText,
+        critiqueText,
+        attempts: attempt,
+        decision,
+      };
+    }
+
+    critiqueFeedback = feedback || critiqueText;
+  }
+
+  const finalCritique = await callAgent({
+    client,
+    role: AGENT_ROLES.CRITIQUE,
+    input: `${critiquePrompt()}
+
+FINAL_REVIEW:
+The cycle hit the max attempt count (${numberOfTotalAttempts}). Provide the most important next steps if more work is required.
+`,
+    instructions: "You are the Critique. Provide final guidance only.",
+  });
+
+  return {
+    planText,
+    fixerText: "",
+    critiqueText: finalCritique,
+    attempts: numberOfTotalAttempts,
+    decision: CRITIQUE_DECISIONS.RETRY,
+  };
 }
 
 function getEditTool() {
@@ -50,7 +254,6 @@ function getEditTool() {
 
       const document = editor.document;
       const filePath = document.uri;
-      const encoder = new TextEncoder;
       console.log(operation);
 
       console.log(content);
@@ -60,8 +263,20 @@ function getEditTool() {
 
       try {
         if (operation === 'write') {
-          // Completely overwrites the file
-          await vscode.workspace.fs.writeFile(filePath, encoder.encode(content));
+          const lastLine = Math.max(0, document.lineCount - 1);
+          const fullRange = new vscode.Range(
+            new vscode.Position(0, 0),
+            document.lineAt(lastLine).rangeIncludingLineBreak.end
+          );
+
+          const ok = await editor.edit(editBuilder => {
+            editBuilder.replace(fullRange, content);
+          });
+
+          if (!ok) {
+            throw new Error("Editor refused to apply write edit");
+          }
+
           return { success: true, message: `Successfully overwrote ${filePath}` };
         }
 
@@ -83,9 +298,13 @@ function getEditTool() {
           const endPos = document.positionAt(startIndex + oldContent.length);
           const range = new vscode.Range(startPos, endPos);
 
-          editor.edit(editBuilder => {
+          const ok = await editor.edit(editBuilder => {
             editBuilder.replace(range, content);
           });
+
+          if (!ok) {
+            throw new Error("Editor refused to apply replace edit");
+          }
 
           return { success: true, message: `Successfully replaced text in ${filePath}` };
         }
@@ -135,14 +354,10 @@ function getReadFileTool() {
       let fileContent = document.getText();
 
       const diagnosis = vscode.languages.getDiagnostics(document.uri);
-      const errors = diagnosis.map(d => {
-        const line = `Error start on line ${d.range.start} and ends on ${d.range.end}`;
-        const severity = d.severity;
-        return `${severity}: ${line} ${d.message}`;
-      });
+      const errorsString = buildDiagnosticsString(diagnosis);
 
-      if (errors.length > 0) {
-        fileContent += "\n\nStatic analysis errors:\n" + errors.join('\n');
+      if (errorsString) {
+        fileContent += "\n\nStatic analysis errors:\n" + errorsString;
       }
 
       return { success: true, message: ``, fileContent: fileContent };

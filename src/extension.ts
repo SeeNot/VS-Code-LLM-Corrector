@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
-import { sendPromt } from './openRouter';
 import path from 'path';
 import dotenv from 'dotenv';
-import reviewPromt from './promts/default';
+import { runAgentFixLoop } from './openRouter';
 
 export function activate(context: vscode.ExtensionContext) {
 
@@ -17,22 +16,9 @@ export function activate(context: vscode.ExtensionContext) {
     const envPath = path.resolve(context.extensionPath, '.env');
     dotenv.config({ path: envPath });
 
-    const document = editor.document;
-    const diagnosis = vscode.languages.getDiagnostics(document.uri);
-    const errors = diagnosis.map(d => {
-      const line = `Error start on line ${d.range.start} and ends on ${d.range.end}`;
-      const severity = d.severity;
-
-      return `${severity}: ${line} ${d.message}`;
-    });
-
-    const fullText = document.getText();
-    const promt = reviewPromt() + fullText + errors;
-    console.log(promt);
-
     vscode.window.showInformationMessage('Connecting to LLM and scanning the file');
-    const answer = await sendPromt(promt);
-    console.log(answer);
+    const result = await runAgentFixLoop();
+    console.log(result);
 
     vscode.window.showInformationMessage('Correcting has been complete');
   });
