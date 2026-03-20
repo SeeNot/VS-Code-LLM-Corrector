@@ -14,7 +14,7 @@ export async function sendPromt(promt: string) {
   const response = client.callModel({
     model: MODEL,
     input: promt,
-    tools: [getEditTool(), getReadFileTool()],
+    tools: [getEditTool(), getReadFileTool(), getListFilePathsTool()],
     instructions: "Use the tools available to make edits to the users given file",
   });
 
@@ -53,6 +53,7 @@ function getEditTool() {
       const encoder = new TextEncoder;
       console.log(operation);
 
+      console.log(content);
       if (!filePath) {
         return { success: false, message: 'User canceled' };
       }
@@ -106,10 +107,10 @@ function getReadFileTool() {
 
   const readTool = tool({
     name: 'read_file',
-    description: 'Read the conent of a file. Not specifying a url will read the users currently open file',
+    description: 'Read the content of a file. If fileUrl is omitted, reads the currently active editor file.',
     inputSchema: z.object({
       fileUrl: z.string().optional().describe(
-        `currently not implemented`
+        `A vscode file URL (e.g. "file:///c:/path/to/file.ts") or an absolute path (e.g. "C:\\path\\to\\file.ts")`
       ),
     }),
     outputSchema: z.object({
@@ -118,30 +119,72 @@ function getReadFileTool() {
       fileContent: z.string(),
     }),
     execute: async ({ fileUrl }) => {
-      const document = vscode.window.activeTextEditor?.document;
-      let fileContent = '';
+      let document: vscode.TextDocument | undefined;
 
-      if (!fileUrl && document) {
-        fileContent = document.getText();
-
-        const diagnosis = vscode.languages.getDiagnostics(document.uri);
-
-        const errors = diagnosis.map(d => {
-          const line = `Error start on line ${d.range.start} and ends on ${d.range.end}`;
-          const severity = d.severity;
-
-          return `${severity}: ${line} ${d.message}`;
-        });
-
-        fileContent += "\n errors in this file from static analysis:\n" + errors;
-
-        return { success: true, message: ``, fileContent: fileContent };
+      if (fileUrl) {
+        const uri = fileUrl.startsWith('file:') ? vscode.Uri.parse(fileUrl) : vscode.Uri.file(fileUrl);
+        document = await vscode.workspace.openTextDocument(uri);
+      } else {
+        document = vscode.window.activeTextEditor?.document;
       }
 
-      return { success: false, message: `currently not implemented`, fileContent: fileContent };
+      if (!document) {
+        return { success: false, message: 'No target file found', fileContent: '' };
+      }
+
+      let fileContent = document.getText();
+
+      const diagnosis = vscode.languages.getDiagnostics(document.uri);
+      const errors = diagnosis.map(d => {
+        const line = `Error start on line ${d.range.start} and ends on ${d.range.end}`;
+        const severity = d.severity;
+        return `${severity}: ${line} ${d.message}`;
+      });
+
+      if (errors.length > 0) {
+        fileContent += "\n\nStatic analysis errors:\n" + errors.join('\n');
+      }
+
+      return { success: true, message: ``, fileContent: fileContent };
     }
   });
 
 
   return readTool;
+}
+
+function getListFilePathsTool() {
+  return tool({
+    name: 'list_file_paths',
+    description: 'List file URLs from the workspace matching a glob pattern. Use this to discover candidate files before calling read_file.',
+    inputSchema: z.object({
+      globPattern: z.string().optional().describe('Glob pattern, e.g. "**/*.ts"'),
+      maxResults: z.number().int().positive().optional().describe('Maximum number of results to return'),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+      message: z.string(),
+      filePaths: z.array(z.string()),
+    }),
+    execute: async ({ globPattern, maxResults }) => {
+      try {
+        // Keep the default narrow to avoid scanning the whole workspace unintentionally.
+        const include = globPattern ?? '**/*.{ts,tsx,js,jsx}';
+        const exclude = '**/node_modules/**';
+
+        const uris = await vscode.workspace.findFiles(include, exclude, maxResults ?? 50);
+        return {
+          success: true,
+          message: '',
+          filePaths: uris.map(u => u.toString()),
+        };
+      } catch (error) {
+        return {
+          success: false,
+          message: `Error listing files: ${(error as Error).message}`,
+          filePaths: [],
+        };
+      }
+    }
+  });
 }

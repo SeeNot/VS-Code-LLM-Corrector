@@ -26,8 +26,6 @@ export function activate(context: vscode.ExtensionContext) {
       return `${severity}: ${line} ${d.message}`;
     });
 
-    console.log(errors);
-
     const fullText = document.getText();
     const promt = reviewPromt() + fullText + errors;
     console.log(promt);
