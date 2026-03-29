@@ -4,6 +4,7 @@ import fixerPrompt from "../promts/fixer";
 import critiquePrompt from "../promts/critique";
 import { getWorkspaceContextFromActiveEditor } from "../vscodeUtils";
 import { AGENT_ROLES, AgentRole, CRITIQUE_DECISIONS, CritiqueDecision, MODEL } from "../types";
+import { appendLlmResponseLog } from "../responseLog";
 import { getEditTool, getReadFileTool, getListFilePathsTool } from "./tools";
 
 function getClient() {
@@ -57,6 +58,7 @@ export async function runAgentFixLoop( numberOfTotalAttempts: number = 3) {
   const client = getClient();
 
   const initial = getWorkspaceContextFromActiveEditor();
+  const logFileFsPath = initial.fileFsPath;
 
   const analystInput = `${analystPrompt()}
 
@@ -75,6 +77,7 @@ export async function runAgentFixLoop( numberOfTotalAttempts: number = 3) {
     input: analystInput,
     instructions: "You are the Analyst. You can read files and list file paths. Do not edit files.",
   });
+  await appendLlmResponseLog(logFileFsPath, AGENT_ROLES.ANALYST, planText);
 
   let critiqueFeedback = "";
 
@@ -106,6 +109,11 @@ export async function runAgentFixLoop( numberOfTotalAttempts: number = 3) {
       input: fixerInput,
       instructions: "You are the Fixer. Implement the plan using tools. Edit files as needed, then verify by reading.",
     });
+    await appendLlmResponseLog(
+      logFileFsPath,
+      `${AGENT_ROLES.FIXER} ${attempt}/${numberOfTotalAttempts}`,
+      fixerText
+    );
 
     const afterFix = getWorkspaceContextFromActiveEditor();
 
@@ -134,6 +142,11 @@ export async function runAgentFixLoop( numberOfTotalAttempts: number = 3) {
       input: critiqueInput,
       instructions: "You are the Critique. Verify the result by reading files. Do not edit.",
     });
+    await appendLlmResponseLog(
+      logFileFsPath,
+      `${AGENT_ROLES.CRITIQUE} ${attempt}/${numberOfTotalAttempts}`,
+      critiqueText
+    );
 
     const { decision, feedback } = parseCritiqueDecision(critiqueText);
 
@@ -160,6 +173,7 @@ The cycle hit the max attempt count (${numberOfTotalAttempts}). Provide the most
 `,
     instructions: "You are the Critique. Provide final guidance only.",
   });
+  await appendLlmResponseLog(logFileFsPath, `${AGENT_ROLES.CRITIQUE} final`, finalCritique);
 
   return {
     planText,

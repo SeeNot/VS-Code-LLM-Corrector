@@ -23,6 +23,7 @@ export function getWorkspaceContextFromActiveEditor() {
   
     return {
       fileUrl: document.uri.toString(),
+      fileFsPath: document.uri.fsPath,
       fullText,
       errors
     };
