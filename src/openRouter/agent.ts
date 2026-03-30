@@ -14,22 +14,22 @@ function getClient() {
 }
 
 function parseCritiqueDecision(text: string): { decision: CritiqueDecision; feedback: string } {
-  const decisionMatch = text.match(/DECISION:\s*(END|RETRY)\b/i);
+  const decisionMatch = text.match(/<decision>\s*(END|RETRY)\s*<\/decision>/i);
   const decision =
     (decisionMatch?.[1]?.toUpperCase() === CRITIQUE_DECISIONS.RETRY)
       ? CRITIQUE_DECISIONS.RETRY
       : CRITIQUE_DECISIONS.END;
 
-  const feedbackMatch = text.match(/CRITIQUE_FEEDBACK:\s*([\s\S]*)/i);
+  const feedbackMatch = text.match(/<feedback>([\s\S]*?)<\/feedback>/i);
   const feedback = feedbackMatch?.[1]?.trim() ?? "";
 
   return { decision, feedback };
 }
 
 function getToolsFor(role: AgentRole) {
-  const edit = getEditTool();
-  const read = getReadFileTool();
-  const list = getListFilePathsTool();
+  const edit = getEditTool;
+  const read = getReadFileTool;
+  const list = getListFilePathsTool;
 
   if (role === AGENT_ROLES.ANALYST || role === AGENT_ROLES.CRITIQUE) {
     return [read, list];

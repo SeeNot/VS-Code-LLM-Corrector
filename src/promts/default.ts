@@ -11,6 +11,10 @@ Safety and quality:
 - Do not introduce secrets, keys, or credentials. Do not disable security checks (linters, types, validation) unless the plan clearly requires it and you explain why.
 - Prefer clear, idiomatic code that matches the surrounding style (naming, imports, patterns already in the file).
 
+Tool Usage Rules:
+- Never guess file contents or line numbers. Always read the file first before attempting edits.
+- The "currently active editor tab" is the TARGET_FILE provided in your context. When editing or reading other files, ALWAYS explicitly pass the fileUrl.
+
 Tone: precise, technical, and concise.`;
 };
 
