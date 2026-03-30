@@ -1,4 +1,4 @@
-export const MODEL = 'arcee-ai/trinity-large-preview:free';
+export const MODEL = 'minimax/minimax-m2.5:free';
 
 export const AGENT_ROLES = {
   ANALYST: "analyst",

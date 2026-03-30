@@ -4,3 +4,6 @@ node_modules
 .vscode-test/
 .env
 *.vsix
+tests
+!tests/python/*py
+!tests/c/*c
