@@ -13,12 +13,18 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
 
+    const extraInstructions = await vscode.window.showInputBox({
+      title: "Corrector: extra instructions (optional)",
+      prompt: "Add any context or constraints for the AI (optional)",
+      placeHolder: "e.g. 'Only fix type errors; do not change behavior' or 'Prefer minimal diff'",
+      ignoreFocusOut: true,
+    });
+
     const envPath = path.resolve(context.extensionPath, '.env');
     dotenv.config({ path: envPath });
 
     vscode.window.showInformationMessage('Connecting to LLM and scanning the file');
-    const result = await runAgentFixLoop();
-    console.log(result);
+    await runAgentFixLoop(3, extraInstructions ?? "");
 
     vscode.window.showInformationMessage('Correcting has been complete');
   });

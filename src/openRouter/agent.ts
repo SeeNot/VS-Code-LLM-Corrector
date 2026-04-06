@@ -54,13 +54,16 @@ async function callAgent(params: {
   return response.getText();
 }
 
-export async function runAgentFixLoop( numberOfTotalAttempts: number = 3) {
+export async function runAgentFixLoop(numberOfTotalAttempts: number = 3, userInstructions: string = "") {
   const client = getClient();
 
   const initial = getWorkspaceContextFromActiveEditor();
   const logFileFsPath = initial.fileFsPath;
 
   const analystInput = `${analystPrompt()}
+
+  USER_INSTRUCTIONS:
+  ${userInstructions?.trim() ? userInstructions.trim() : "(none)"}
 
   TARGET_FILE: ${initial.fileUrl}
 
@@ -87,6 +90,9 @@ export async function runAgentFixLoop( numberOfTotalAttempts: number = 3) {
     const fixerInput = `${fixerPrompt()}
 
     ATTEMPT: ${attempt} / ${numberOfTotalAttempts}
+
+    USER_INSTRUCTIONS:
+    ${userInstructions?.trim() ? userInstructions.trim() : "(none)"}
 
     TARGET_FILE: ${ctx.fileUrl}
 
@@ -120,6 +126,9 @@ export async function runAgentFixLoop( numberOfTotalAttempts: number = 3) {
     const critiqueInput = `${critiquePrompt()}
 
     ATTEMPT: ${attempt} / ${numberOfTotalAttempts}
+
+    USER_INSTRUCTIONS:
+    ${userInstructions?.trim() ? userInstructions.trim() : "(none)"}
 
     TARGET_FILE: ${afterFix.fileUrl}
 

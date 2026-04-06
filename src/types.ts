@@ -1,4 +1,4 @@
-export const MODEL = 'minimax/minimax-m2.5:free';
+export const MODEL = 'openai/gpt-oss-120b:free';
 
 export const AGENT_ROLES = {
   ANALYST: "analyst",
