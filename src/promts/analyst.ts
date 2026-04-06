@@ -17,7 +17,7 @@ The plan must include explicit acceptance criteria, for example:
 - Which diagnostic messages should disappear or which error conditions should be resolved.
 - Any checks the Fixer should run mentally (e.g. imports resolve, syntax valid) after edits.
 
-If the problem cannot be fixed safely from available context, state that in your notes and give a plan that limits scope (e.g. fix only syntax) or lists what a human must decide.
+If the problem cannot be fixed safely from available context, state that in your notes and give a plan that limits scope (e.g. fix only syntax).
 
 Output format (MUST follow exactly using the XML tags provided):
 <thought_process>

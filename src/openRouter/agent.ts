@@ -49,6 +49,7 @@ async function callAgent(params: {
     input: params.input,
     tools: getToolsFor(params.role),
     instructions: params.instructions,
+    temperature: 0.1,
   });
 
   return response.getText();

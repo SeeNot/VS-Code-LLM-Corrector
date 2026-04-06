@@ -5,9 +5,7 @@ void compute_moving_average(float *data, int data_length, int window, float *out
     if (window <= 0 || data_length == 0) return;
 
     int i = 0;
-    // KĻŪDA: i <= data_length nozīmē, ka cikls izpildīsies vēl vienu reizi,
-    // mēģinot lasīt datus aiz masīva robežām (buffer overread).
-    while (i <= data_length - window) {
+    while (i < data_length) {
         float sum = 0;
         for (int j = 0; j < window; j++) {
             sum += data[i + j];
@@ -20,7 +18,7 @@ void compute_moving_average(float *data, int data_length, int window, float *out
 int main() {
     float signal[] = {10.0, 20.0, 30.0, 40.0};
     int len = 4;
-    float result[4] = {0}; // Pietiekami liels buferis rezultātam
+    float result[4] = {0};
 
     compute_moving_average(signal, len, 2, result);
 

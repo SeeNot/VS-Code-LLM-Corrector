@@ -12,8 +12,6 @@ int check_admin_access(DatabaseRecord *record) {
     char required_role[20];
     strcpy(required_role, "ADMIN");
 
-    // KĻŪDA: Tiek salīdzinātas rādītāju adreses, nevis virkņu saturs.
-    // Šis nosacījums vienmēr būs nepatiess (false).
     if (record->role == required_role) {
         return 1;
     }

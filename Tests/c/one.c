@@ -9,8 +9,6 @@ typedef struct {
 } CustomerProfile;
 
 void init_customer(CustomerProfile *c, int id, const char *name, const char *initial_tag) {
-    // KĻŪDA: 'static' buferis nozīmē, ka visi klienti dalīs šo pašu atmiņas adresi.
-    // Kad otrais klients pievienos savu tagu, pirmajam tas arī mainīsies.
     static char tag_buffer[256];
 
     c->id = id;

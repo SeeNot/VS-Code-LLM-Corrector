@@ -14,14 +14,10 @@ typedef struct {
 void remove_spoiled(Inventory *inv) {
     for (int i = 0; i < inv->count; i++) {
         if (inv->items[i].spoiled) {
-            // Nobīdam visus nākamos elementus pa kreisi
             for (int j = i; j < inv->count - 1; j++) {
                 inv->items[j] = inv->items[j + 1];
             }
             inv->count--;
-
-            // KĻŪDA: Trūkst i--, jo esošajā indeksā tagad atrodas JAUNS elements,
-            // kas joprojām jāpārbauda nākamajā iterācijā.
         }
     }
 }
@@ -29,10 +25,10 @@ void remove_spoiled(Inventory *inv) {
 int main() {
     Inventory inv;
     inv.count = 4;
-    inv.items[0] = (Item){1, 1}; // Spoiled
-    inv.items[1] = (Item){2, 1}; // Spoiled - ŠIS TIKS IZLAISTS!
-    inv.items[2] = (Item){3, 0}; // Fresh
-    inv.items[3] = (Item){4, 1}; // Spoiled
+    inv.items[0] = (Item){1, 1};
+    inv.items[1] = (Item){2, 1};
+    inv.items[2] = (Item){3, 0};
+    inv.items[3] = (Item){4, 1};
 
     remove_spoiled(&inv);
 

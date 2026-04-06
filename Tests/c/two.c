@@ -8,8 +8,6 @@ typedef struct {
 } DataPipeline;
 
 int* get_default_multipliers() {
-    // KĻŪDA: Masīvs ir alocēts stekā. Atgriežot norādi uz to,
-    // rodas "Dangling pointer" (karājošā norāde).
     int default_arr[] = {2, 3, 4};
     return default_arr;
 }
@@ -24,10 +22,8 @@ int main() {
     DataPipeline pipe;
     init_pipeline(&pipe);
 
-    // Mākslīgi izsaucam citu funkciju, lai pārrakstītu steka atmiņu
     printf("Inicializējam datus...\n");
 
-    // KĻŪDA: Šeit visticamāk tiks izdrukāti atkritumdati (garbage values)
     if (pipe.multipliers[0] != 2) {
         printf("Kļūda: Pirmā reizinātāja vērtība ir %d, nevis 2!\n", pipe.multipliers[0]);
         return 1;

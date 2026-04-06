@@ -5,5 +5,3 @@ node_modules
 .env
 *.vsix
 tests
-!tests/python/*py
-!tests/c/*c
